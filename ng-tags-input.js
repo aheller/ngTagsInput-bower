@@ -42,6 +42,7 @@ var tagsInput = angular.module('ngTagsInput', []);
  * @param {string=} [templateScope=NA] Scope to be passed to custom templates - of both tagsInput and
  *    autoComplete directives - as $scope.
  * @param {string=} [displayProperty=text] Property to be rendered as the tag label.
+ * @param {expression=} [trackByExpr=NA] Expression that should evaluate to a unique identifier for the tag which is available as $tag and its index as $index. 
  * @param {string=} [keyProperty=text] Property to be used as a unique identifier for the tag.
  * @param {string=} [type=text] Type of the input element. Only 'text', 'email' and 'url' are supported values.
  * @param {string=} [text=NA] Assignable Angular expression for data-binding to the element's text.
@@ -97,11 +98,12 @@ tagsInput.directive('tagsInput', ["$timeout", "$document", "$window", "$q", "tag
 
         canAddTag = function(tag) {
             var tagText = getTagText(tag);
+            var tagIdentifier = self.track(tag, self.items.length);
             var valid = tagText &&
                         tagText.length >= options.minLength &&
                         tagText.length <= options.maxLength &&
                         options.allowedTagsPattern.test(tagText) &&
-                        !tiUtil.findInObjectArray(self.items, tag, options.keyProperty || options.displayProperty);
+                        self.items.every(function (item, index) { return self.track(item, index) !== tagIdentifier; });
 
             return $q.when(valid && onTagAdding({ $tag: tag })).then(tiUtil.promisifyValue);
         };
@@ -202,6 +204,7 @@ tagsInput.directive('tagsInput', ["$timeout", "$document", "$window", "$q", "tag
             onTagRemoving: '&',
             onTagRemoved: '&',
             onTagClicked: '&',
+            trackByExpr: '&'
         },
         replace: false,
         transclude: true,
@@ -316,9 +319,14 @@ tagsInput.directive('tagsInput', ["$timeout", "$document", "$window", "$q", "tag
                 invalid: null
             };
 
-            scope.track = function(tag) {
-                return tag[options.keyProperty || options.displayProperty];
+            scope.track = tagList.track = function(tag, index) {
+                if (attrs.trackByExpr == null) {
+                    return tiUtil.normalizeString(tag[options.keyProperty || options.displayProperty]);
+                }
+
+                return scope.trackByExpr({ $tag: tag, $index: index });
             };
+            
 
             scope.getTagClass = function(tag, index) {
                 var selected = tag === tagList.selected;
@@ -1101,10 +1109,14 @@ tagsInput.factory('tiUtil', ["$timeout", "$q", function($timeout, $q) {
         return item;
     };
 
-    self.defaultComparer = function(a, b) {
+    self.normalizeString = function(str) {
         // I'm aware of the internationalization issues regarding toLowerCase()
         // but I couldn't come up with a better solution right now
-        return self.safeToString(a).toLowerCase() === self.safeToString(b).toLowerCase();
+        return self.safeToString(str).toLowerCase();
+    };
+
+    self.defaultComparer = function(a, b) {
+        return self.normalizeString(a) === self.normalizeString(b);
     };
 
     self.safeHighlight = function(str, value) {
@@ -1185,7 +1197,7 @@ tagsInput.factory('tiUtil', ["$timeout", "$q", function($timeout, $q) {
 /* HTML templates */
 tagsInput.run(["$templateCache", function($templateCache) {
     $templateCache.put('ngTagsInput/tags-input.html',
-    "<div class=\"host\" tabindex=\"-1\" ng-click=\"eventHandlers.host.click()\" ti-transclude-append><div class=\"tags\" ng-class=\"{focused: hasFocus}\"><ul class=\"tag-list\"><li class=\"tag-item\" ng-repeat=\"tag in tagList.items track by track(tag)\" ng-class=\"getTagClass(tag, $index)\" ng-click=\"eventHandlers.tag.click(tag)\"><ti-tag-item scope=\"templateScope\" data=\"::tag\"></ti-tag-item></li></ul><input class=\"input\" autocomplete=\"off\" ng-model=\"newTag.text\" ng-model-options=\"{getterSetter: true}\" ng-keydown=\"eventHandlers.input.keydown($event)\" ng-focus=\"eventHandlers.input.focus($event)\" ng-blur=\"eventHandlers.input.blur($event)\" ng-paste=\"eventHandlers.input.paste($event)\" ng-trim=\"false\" ng-class=\"{'invalid-tag': newTag.invalid}\" ng-disabled=\"disabled\" ti-bind-attrs=\"{type: options.type, placeholder: options.placeholder, tabindex: options.tabindex, spellcheck: options.spellcheck}\" ti-autosize></div></div>"
+    "<div class=\"host\" tabindex=\"-1\" ng-click=\"eventHandlers.host.click()\" ti-transclude-append><div class=\"tags\" ng-class=\"{focused: hasFocus}\"><ul class=\"tag-list\"><li class=\"tag-item\" ng-repeat=\"tag in tagList.items track by track(tag, $index)\" ng-class=\"getTagClass(tag, $index)\" ng-click=\"eventHandlers.tag.click(tag)\"><ti-tag-item scope=\"templateScope\" data=\"::tag\"></ti-tag-item></li></ul><input class=\"input\" autocomplete=\"off\" ng-model=\"newTag.text\" ng-model-options=\"{getterSetter: true}\" ng-keydown=\"eventHandlers.input.keydown($event)\" ng-focus=\"eventHandlers.input.focus($event)\" ng-blur=\"eventHandlers.input.blur($event)\" ng-paste=\"eventHandlers.input.paste($event)\" ng-trim=\"false\" ng-class=\"{'invalid-tag': newTag.invalid}\" ng-disabled=\"disabled\" ti-bind-attrs=\"{type: options.type, placeholder: options.placeholder, tabindex: options.tabindex, spellcheck: options.spellcheck}\" ti-autosize></div></div>"
   );
 
   $templateCache.put('ngTagsInput/tag-item.html',
