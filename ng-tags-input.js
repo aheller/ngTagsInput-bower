@@ -1,5 +1,5 @@
 /*!
- * ngTagsInput v3.1.1
+ * ngTagsInput v3.1.3
  * http://mbenford.github.io/ngTagsInput
  *
  * Copyright (c) 2013-2016 Michael Benford
